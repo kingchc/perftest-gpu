@@ -1413,11 +1413,13 @@ static void force_dependecies(struct perftest_parameters *user_param)
 
 	#ifdef HAVE_CUDA
 	if (user_param->use_cuda) {
+#if 0
 		if (user_param->tst != BW) {
 			printf(RESULT_LINE);
 			fprintf(stderr," Perftest supports CUDA only in BW tests\n");
 			exit(1);
 		}
+#endif
 	}
 
 	if (user_param->use_cuda && user_param->mmap_file != NULL) {
