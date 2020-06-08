@@ -1,6 +1,6 @@
 #!/bin/sh
 
-### TODO: add root path of ROCM library, E.g., CUDA_HOM=/opt/rocm
+### TODO: add root path of ROCM library, E.g., ROCM_HOM=/opt/rocm
 ROCM_HOME=
 
 ./autogen.sh
