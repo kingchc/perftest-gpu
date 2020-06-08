@@ -11,6 +11,8 @@ client=
 test_name="$INSTALL_PATH/ib_read_lat"
 ### TODO: use the options you like
 options="-a  -d mlx5_0 --use_cuda=0"
+### ROCm option
+# options="-a  -d mlx5_0 --use_gpu=0"
 
 _cmd="$test_name $options"
 set -x
