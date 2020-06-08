@@ -474,6 +474,10 @@ static void usage(const char *argv0, VerbType verb, TestType tst, int connection
 		printf("      --use_cuda=<cuda device id>");
 		printf(" Use CUDA specific device for GPUDirect RDMA testing\n");
 		#endif
+		#ifdef HAVE_HIP
+		printf("      --use_gpu=<gpu device id>");
+		printf(" Use specific device for GPUDirect RDMA testing on AMD GPUs\n");
+		#endif
 
 		printf("      --use_hugepages ");
 		printf(" Use Hugepages instead of contig, memalign allocations.\n");
@@ -674,6 +678,10 @@ static void init_perftest_params(struct perftest_parameters *user_param)
 #ifdef HAVE_CUDA
 	user_param->use_cuda		= 0;
 	user_param->cuda_device_id		= 0;
+#endif
+#ifdef HAVE_CUDA
+	user_param->use_gpu		= 0;
+	user_param->gpu_device_id		= 0;
 #endif
 	user_param->mmap_file		= NULL;
 	user_param->mmap_offset		= 0;
@@ -1848,6 +1856,9 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 #ifdef HAVE_CUDA
 	static int use_cuda_flag = 0;
 #endif
+#ifdef HAVE_HIP
+	static int use_gpu_flag = 0;
+#endif
 	static int disable_pcir_flag = 0;
 	static int mmap_file_flag = 0;
 	static int mmap_offset_flag = 0;
@@ -1972,6 +1983,9 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 			{ .name = "dont_xchg_versions",	.has_arg = 0, .flag = &dont_xchg_versions_flag, .val = 1},
 			#ifdef HAVE_CUDA
 			{ .name = "use_cuda",		.has_arg = 1, .flag = &use_cuda_flag, .val = 1},
+			#endif
+			#ifdef HAVE_HIP
+			{ .name = "use_gpu",		.has_arg = 1, .flag = &use_gpu_flag, .val = 1},
 			#endif
 			{ .name = "mmap",		.has_arg = 1, .flag = &mmap_file_flag, .val = 1},
 			{ .name = "mmap-offset",	.has_arg = 1, .flag = &mmap_offset_flag, .val = 1},
@@ -2346,6 +2360,18 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 						return FAILURE;
 					}
 					use_cuda_flag = 0;
+				}
+#endif
+#ifdef HAVE_HIP
+				if (use_gpu_flag) {
+					user_param->use_gpu = 1;
+					user_param->gpu_device_id = strtol(optarg, NULL, 0);
+					if (user_param->gpu_device_id < 0)
+					{
+						fprintf(stderr, "Invalid GPU device %d\n", user_param->gpu_device_id);
+						return FAILURE;
+					}
+					use_gpu_flag = 0;
 				}
 #endif
 				if (flow_label_flag) {

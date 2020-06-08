@@ -131,6 +131,60 @@ static void pp_free_gpu(struct pingpong_context *ctx)
 }
 #endif
 
+#ifdef HAVE_HIP
+#define ASSERT(x)										\
+	do {											\
+	if (!(x)) {										\
+		fprintf(stdout, "Assertion \"%s\" failed at %s:%d\n", #x, __FILE__, __LINE__);	\
+	}											\
+} while (0)
+
+#define HIP_CHECK(stmt)				\
+	do {					\
+	hipError_t 	 result = (stmt);		\
+	ASSERT(hipSuccess == result);		\
+} while (0)
+
+/*----------------------------------------------------------------------------*/
+
+
+static int pp_init_gpu(struct pingpong_context *ctx, int gpu_device_id)
+{
+	int index;
+
+	printf("initializing GPU through HIP APIs\n");
+
+	int deviceCount = 0;
+	HIP_CHECK(hipGetDeviceCount(&deviceCount));
+	/* This function call returns 0 if there are no CUDA capable devices. */
+	if (deviceCount == 0) {
+		printf("There are no available device(s) that support GPU\n");
+		return 1;
+	}
+	if (gpu_device_id >= deviceCount) {
+		fprintf(stderr, "No such device ID (%d) exists in system\n", gpu_device_id);
+		return 1;
+	}
+
+    printf("\nPicking device No. %d\n", gpu_device_id);
+
+	HIP_CHECK(hipSetDevice(gpu_device_id));
+
+	char name[128];
+    hipDeviceProp_t gpu_prop;
+    HIP_CHECK(hipGetDeviceProperties(&gpu_prop, gpu_device_id));
+
+	printf("[pid = %d, dev = %d] device name = [%s]\n", getpid(), gpu_device_id, gpu_prop.name);
+
+	return 0;
+}
+
+static void pp_free_gpu(struct pingpong_context *ctx)
+{
+    // do we need to do anything?
+}
+#endif
+
 static int pp_init_mmap(struct pingpong_context *ctx, size_t size,
 			const char *fname, unsigned long offset)
 {
@@ -1015,6 +1069,19 @@ int destroy_ctx(struct pingpong_context *ctx,
 	}
 	else
 	#endif
+	#ifdef HAVE_HIP
+	if (user_param->use_gpu) {
+		for (i = 0; i < dereg_counter; i++) {
+			void *d_A = ctx->buf[i];
+
+			printf("deallocating RX GPU buffer %016llx\n", d_A);
+			hipFree(d_A);
+			d_A = 0;
+		}
+		pp_free_gpu(ctx);
+	}
+	else
+	#endif
 	if (user_param->mmap_file != NULL) {
 		pp_free_mmap(ctx);
 	} else if (ctx->is_contig_supported == FAILURE) {
@@ -1195,6 +1262,28 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 		ctx->buf[qp_index] = (void *)d_A;
 	} else
 	#endif
+	#ifdef HAVE_HIP
+	if (user_param->use_gpu) {
+		void *d_A;
+		int error;
+		const size_t gpu_page_size = 64 * 1024;
+		size_t size = (ctx->buff_size + gpu_page_size - 1) &
+			~(gpu_page_size - 1);
+
+		ctx->is_contig_supported = FAILURE;
+
+		printf("hipMalloc() of a %zd bytes GPU buffer\n",
+		       ctx->buff_size);
+        // TODO: add better error handles
+        int hip_errno = hipMalloc((void**) &d_A, size);
+        if (hip_errno != 0)
+            fprintf(stderr, "error code %d for hipMalloc\n", hip_errno);
+
+		printf("allocated GPU buffer address at %016llx pointer=%p\n",
+		       d_A, (void *)d_A);
+		ctx->buf[qp_index] = (void *)d_A;
+	} else
+	#endif
 
 	if (user_param->mmap_file != NULL) {
 		#if defined(__FreeBSD__)
@@ -1268,6 +1357,8 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 	/* Initialize buffer with random numbers except in WRITE_LAT test that it 0's */
 #ifdef HAVE_CUDA
 	if (!user_param->use_cuda) {
+#elif HAVE_HIP
+	if (!user_param->use_gpu) {
 #endif
 		srand(time(NULL));
 		if (user_param->verb == WRITE && user_param->tst == LAT) {
@@ -1277,7 +1368,7 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 				((char*)ctx->buf[qp_index])[i] = (char)rand();
 			}
 		}
-#ifdef HAVE_CUDA
+#if defined(HAVE_CUDA) || defined(HAVE_HIP)
 	}
 #endif
 	return SUCCESS;
@@ -1470,6 +1561,14 @@ int ctx_init(struct pingpong_context *ctx, struct perftest_parameters *user_para
 	#ifdef HAVE_CUDA
 	if (user_param->use_cuda) {
 		if (pp_init_gpu(ctx, user_param->cuda_device_id)) {
+			fprintf(stderr, "Couldn't init GPU context\n");
+			return FAILURE;
+		}
+	}
+	#endif
+	#ifdef HAVE_HIP
+	if (user_param->use_gpu) {
+		if (pp_init_gpu(ctx, user_param->gpu_device_id)) {
 			fprintf(stderr, "Couldn't init GPU context\n");
 			return FAILURE;
 		}

@@ -39,6 +39,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_SUBST(MAJOR_VERSION)
 AC_SUBST(MINOR_VERSION)
 
+AC_ARG_VAR(HIP_PATH, Enable ROCM feature with HIP APIs to test GPUDirect RDMA over AMD GPUs)
 AC_ARG_VAR(CUDA_H_PATH, help-string)
 AC_ARG_VAR(RANLIB, ranlib tool)
 
@@ -208,6 +209,13 @@ if [test "$CUDA_H_PATH" ]; then
 	AC_DEFINE([HAVE_CUDA], [1], [Enable CUDA feature])
 	AC_DEFINE_UNQUOTED([CUDA_PATH], "$CUDA_H_PATH" , [Enable CUDA feature])
 	LIBS=$LIBS" -lcuda"
+fi
+
+if [test "$HIP_PATH" ]; then
+	AC_DEFINE([HAVE_HIP], [1], [Enable ROCM feature with HIP APIs])
+	AC_DEFINE_UNQUOTED([HIP_PATH], "$HIP_PATH" , [Enable ROCM feature with HIP APIs])
+    CFLAGS="-I$HIP_PATH/include $CFLAGS"
+	LIBS=$LIBS" -L$HIP_PATH/lib  -lhip_hcc"
 fi
 
 AC_TRY_LINK([#include <infiniband/verbs.h>],

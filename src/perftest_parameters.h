@@ -69,6 +69,11 @@
 #ifdef HAVE_CUDA
 #include CUDA_PATH
 #endif
+#ifdef HAVE_HIP
+// FIXME: hard-coded platform; can we move it to configure file?
+#define __HIP_PLATFORM_HCC__
+#include "hip/hip_runtime.h"
+#endif
 
 /* Connection types available. */
 #define RC  (0)
@@ -454,6 +459,10 @@ struct perftest_parameters {
 #ifdef HAVE_CUDA
 	int				use_cuda;
 	int				cuda_device_id;
+#endif
+#ifdef HAVE_HIP
+	int				use_gpu;
+	int				gpu_device_id;
 #endif
 	char				*mmap_file;
 	unsigned long			mmap_offset;
